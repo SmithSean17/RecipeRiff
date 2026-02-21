@@ -1,12 +1,13 @@
 /**
  * Stats API tests — streak, meals this month, unique recipes, most cooked, activity grid.
  */
+import { User } from '../src/types';
 import {
   app, db, request, cleanDatabase, createTestUser, createTestRecipe,
   authGet, authPost,
 } from './helpers';
 
-let token;
+let token: string;
 
 beforeEach(async () => {
   cleanDatabase();
@@ -36,7 +37,7 @@ describe('GET /api/stats', () => {
   });
 
   it('counts meals this month after logging cooks', async () => {
-    import { recipe } = await createTestRecipe(token);
+    const { recipe } = await createTestRecipe(token);
     await authPost('/api/cook-logs', token).send({ recipeId: recipe.id, rating: 4 });
     await authPost('/api/cook-logs', token).send({ recipeId: recipe.id, rating: 5 });
 
@@ -45,8 +46,8 @@ describe('GET /api/stats', () => {
   });
 
   it('counts unique recipes cooked', async () => {
-    import { recipe: r1 } = await createTestRecipe(token, { title: 'R1' });
-    import { recipe: r2 } = await createTestRecipe(token, { title: 'R2' });
+    const { recipe: r1 } = await createTestRecipe(token, { title: 'R1' });
+    const { recipe: r2 } = await createTestRecipe(token, { title: 'R2' });
 
     await authPost('/api/cook-logs', token).send({ recipeId: r1.id, rating: 4 });
     await authPost('/api/cook-logs', token).send({ recipeId: r1.id, rating: 5 });
@@ -57,8 +58,8 @@ describe('GET /api/stats', () => {
   });
 
   it('returns most cooked recipes (top 5, ordered by count)', async () => {
-    import { recipe: r1 } = await createTestRecipe(token, { title: 'Popular' });
-    import { recipe: r2 } = await createTestRecipe(token, { title: 'Less Popular' });
+    const { recipe: r1 } = await createTestRecipe(token, { title: 'Popular' });
+    const { recipe: r2 } = await createTestRecipe(token, { title: 'Less Popular' });
 
     // Cook r1 three times, r2 once
     await authPost('/api/cook-logs', token).send({ recipeId: r1.id, rating: 5 });
@@ -91,17 +92,17 @@ describe('GET /api/stats', () => {
   });
 
   it('activity grid reflects cook logs', async () => {
-    import { recipe } = await createTestRecipe(token);
+    const { recipe } = await createTestRecipe(token);
     await authPost('/api/cook-logs', token).send({ recipeId: recipe.id, rating: 5 });
 
     const res = await authGet('/api/stats', token);
     const today = new Date().toISOString().split('T')[0];
-    const todayEntry = res.body.activityGrid.find(e => e.date === today);
+    const todayEntry = res.body.activityGrid.find((e: any) => e.date === today);
     expect(todayEntry.count).toBeGreaterThanOrEqual(1);
   });
 
   it('streak is 1 after cooking today', async () => {
-    import { recipe } = await createTestRecipe(token);
+    const { recipe } = await createTestRecipe(token);
     await authPost('/api/cook-logs', token).send({ recipeId: recipe.id, rating: 4 });
 
     const res = await authGet('/api/stats', token);
@@ -109,8 +110,9 @@ describe('GET /api/stats', () => {
   });
 
   it('streak counts consecutive days', async () => {
-    import { recipe } = await createTestRecipe(token);
-    const userId = db.prepare("SELECT id FROM users LIMIT 1").get().id;
+    const { recipe } = await createTestRecipe(token);
+    const userInfo: any = db.prepare("SELECT id FROM users LIMIT 1").get();
+    const userId = userInfo.id;
 
     // Manually insert cook logs for today, yesterday, and day before
     const today = new Date();
@@ -129,7 +131,7 @@ describe('GET /api/stats', () => {
 
   it('does not count other users\' stats', async () => {
     const user2 = await createTestUser({ email: 'other@example.com' });
-    import { recipe } = await createTestRecipe(user2.token);
+    const { recipe } = await createTestRecipe(user2.token);
     await authPost('/api/cook-logs', user2.token).send({ recipeId: recipe.id, rating: 5 });
 
     const res = await authGet('/api/stats', token);

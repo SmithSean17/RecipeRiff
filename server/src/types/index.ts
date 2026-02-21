@@ -10,6 +10,12 @@ export interface UserRow {
   created_at: string;
 }
 
+export interface User {
+  id: number;
+  email: string;
+  displayName: string;
+}
+
 export interface RefreshTokenRow {
   id: number;
   user_id: number;

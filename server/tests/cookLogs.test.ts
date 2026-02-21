@@ -6,14 +6,14 @@ import {
   authGet, authPost,
 } from './helpers';
 
-let token;
-let recipeId;
+let token: string;
+let recipeId: any;
 
 beforeEach(async () => {
   cleanDatabase();
   const user = await createTestUser();
   token = user.token;
-  import { recipe } = await createTestRecipe(token);
+  const { recipe } = await createTestRecipe(token);
   recipeId = recipe.id;
 });
 
@@ -133,7 +133,8 @@ describe('GET /api/cook-logs', () => {
   it('orders by cooked_at DESC (most recent first)', async () => {
     // The beforeEach logs may have same-second timestamps via the API.
     // Insert directly with distinct timestamps to verify ordering.
-    const userId = db.prepare("SELECT id FROM users LIMIT 1").get().id;
+    const userInfo: any = db.prepare("SELECT id FROM users LIMIT 1").get()
+    const userId = userInfo.id;
     db.prepare("DELETE FROM cook_logs").run(); // clear API-inserted logs
     db.prepare(
       "INSERT INTO cook_logs (user_id, recipe_id, rating, notes, cooked_at) VALUES (?, ?, ?, ?, ?)"
@@ -148,7 +149,7 @@ describe('GET /api/cook-logs', () => {
   });
 
   it('filters by recipeId', async () => {
-    import { recipe: recipe2 } = await createTestRecipe(token, { title: 'Another' });
+    const { recipe: recipe2 } = await createTestRecipe(token, { title: 'Another' });
     await authPost('/api/cook-logs', token).send({ recipeId: recipe2.id, rating: 3 });
 
     const all = await authGet('/api/cook-logs', token);
@@ -160,7 +161,7 @@ describe('GET /api/cook-logs', () => {
 
   it('does not include other users\' logs', async () => {
     const user2 = await createTestUser({ email: 'other@example.com' });
-    import { recipe: r2 } = await createTestRecipe(user2.token);
+    const { recipe: r2 } = await createTestRecipe(user2.token);
     await authPost('/api/cook-logs', user2.token).send({ recipeId: r2.id, rating: 3 });
 
     const res = await authGet('/api/cook-logs', token);

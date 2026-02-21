@@ -106,7 +106,7 @@ function authDelete(urlPath: string, token: string): request.Test {
 /**
  * Create a recipe for a user and return the response body.
  */
-async function createTestRecipe(token: string, overrides: RecipeOverrides = {}): Promise<{ recipe: Record<string, unknown> }> {
+async function createTestRecipe(token: string, overrides: RecipeOverrides = {}): Promise<{ recipe: Record<string, string> }> {
   const data = {
     title: overrides.title || 'Test Recipe',
     prepTime: overrides.prepTime || '10 min',

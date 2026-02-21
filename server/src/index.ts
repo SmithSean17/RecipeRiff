@@ -14,8 +14,6 @@ import statsRoutes from './routes/stats';
 
 const app = express();
 const PORT = (process.env.PORT || 3000) as number;
-console.log('PORT :>> ', PORT);
-console.log('typeof PORT :>> ', typeof PORT);
 
 // Ensure upload directories exist
 const uploadsDir = path.join(__dirname, '../uploads/cook-logs');

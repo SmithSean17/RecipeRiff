@@ -6,7 +6,7 @@ import {
   authGet, authPost, authPut, authDelete,
 } from './helpers';
 
-let token;
+let token: string;
 let userId;
 
 beforeEach(async () => {
@@ -147,7 +147,7 @@ describe('POST /api/recipes', () => {
 
 describe('GET /api/recipes/:id', () => {
   it('returns full recipe detail', async () => {
-    import { recipe } = await createTestRecipe(token);
+    const { recipe } = await createTestRecipe(token);
 
     const res = await authGet(`/api/recipes/${recipe.id}`, token);
     expect(res.status).toBe(200);
@@ -163,7 +163,7 @@ describe('GET /api/recipes/:id', () => {
   });
 
   it('returns 404 for another user\'s recipe', async () => {
-    import { recipe } = await createTestRecipe(token);
+    const { recipe } = await createTestRecipe(token);
     const user2 = await createTestUser({ email: 'other@example.com' });
 
     const res = await authGet(`/api/recipes/${recipe.id}`, user2.token);
@@ -193,7 +193,7 @@ describe('GET /api/recipes', () => {
 
     const res = await authGet('/api/recipes', token);
     expect(res.body.recipes).toHaveLength(3);
-    const titles = res.body.recipes.map(r => r.title);
+    const titles = res.body.recipes.map((r: any) => r.title);
     expect(titles).not.toContain('Secret Recipe');
   });
 
@@ -212,7 +212,7 @@ describe('GET /api/recipes', () => {
   it('filters by tag', async () => {
     const res = await authGet('/api/recipes?tag=Quick', token);
     expect(res.body.recipes).toHaveLength(2);
-    const titles = res.body.recipes.map(r => r.title);
+    const titles = res.body.recipes.map((r: any) => r.title);
     expect(titles).toContain('Pasta Carbonara');
     expect(titles).toContain('Quick Omelette');
   });
@@ -239,13 +239,13 @@ describe('GET /api/recipes', () => {
     expect(res.status).toBe(200);
     expect(res.body.recipes).toHaveLength(3);
     // All three created in same second so order may vary, but all should be present
-    const titles = res.body.recipes.map(r => r.title).sort();
+    const titles = res.body.recipes.map((r: any) => r.title).sort();
     expect(titles).toEqual(['Chocolate Cake', 'Pasta Carbonara', 'Quick Omelette']);
   });
 
   it('sorts by most-cooked', async () => {
     const list = await authGet('/api/recipes', token);
-    const pastaId = list.body.recipes.find(r => r.title === 'Pasta Carbonara').id;
+    const pastaId = list.body.recipes.find((r: any) => r.title === 'Pasta Carbonara').id;
 
     await authPost('/api/cook-logs', token).send({ recipeId: pastaId, rating: 5 });
     await authPost('/api/cook-logs', token).send({ recipeId: pastaId, rating: 4 });
@@ -256,7 +256,7 @@ describe('GET /api/recipes', () => {
 
   it('sorts by recently-cooked', async () => {
     const list = await authGet('/api/recipes', token);
-    const cakeId = list.body.recipes.find(r => r.title === 'Chocolate Cake').id;
+    const cakeId = list.body.recipes.find((r: any) => r.title === 'Chocolate Cake').id;
 
     await authPost('/api/cook-logs', token).send({ recipeId: cakeId, rating: 5 });
 
@@ -274,10 +274,10 @@ describe('GET /api/recipes', () => {
 // ─── Update Recipe ───────────────────────────────────────
 
 describe('PUT /api/recipes/:id', () => {
-  let recipeId;
+  let recipeId: string;
 
   beforeEach(async () => {
-    import { recipe } = await createTestRecipe(token, {
+    const { recipe } = await createTestRecipe(token, {
       title: 'Original',
       tags: ['Dinner'],
       ingredients: [{ quantity: '1 cup', name: 'Rice' }],
@@ -360,10 +360,10 @@ describe('PUT /api/recipes/:id', () => {
 // ─── Delete Recipe ───────────────────────────────────────
 
 describe('DELETE /api/recipes/:id', () => {
-  let recipeId;
+  let recipeId: string;
 
   beforeEach(async () => {
-    import { recipe } = await createTestRecipe(token);
+    const { recipe } = await createTestRecipe(token);
     recipeId = recipe.id;
   });
 

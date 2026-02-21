@@ -6,7 +6,7 @@ import {
   authGet,
 } from './helpers';
 
-let token;
+let token: string;
 
 beforeAll(async () => {
   cleanDatabase();
@@ -33,7 +33,7 @@ describe('GET /api/substitutions/lookup', () => {
 
   it('returns substitutions sorted by rank', async () => {
     const res = await authGet('/api/substitutions/lookup?ingredient=butter', token);
-    const ranks = res.body.substitutions.map(s => s.rank);
+    const ranks = res.body.substitutions.map((s: any) => s.rank);
     const sorted = [...ranks].sort((a, b) => a - b);
     expect(ranks).toEqual(sorted);
   });

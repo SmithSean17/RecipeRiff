@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 import type { TokenPayload, DecodedToken } from '../types';
 
 const SECRET: string = process.env.JWT_SECRET!;
-console.log('SECRET :>> ', SECRET);
 if (!SECRET) {
   throw new Error('JWT_SECRET environment variable is required. Set it in .env or your environment.');
 }
