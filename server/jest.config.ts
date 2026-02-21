@@ -6,6 +6,7 @@ const config: Config = {
   testMatch: ['**/tests/**/*.test.ts'],
   maxWorkers: 1,
   testTimeout: 15000,
+  setupFiles: ['./tests/setup.ts']
 };
 
 export default config;

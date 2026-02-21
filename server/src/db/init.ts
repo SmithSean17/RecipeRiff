@@ -3,7 +3,9 @@ import path from 'path';
 import seedSubstitutions from './seed-substitutions';
 import type { CountResultC } from '../types';
 
-const DB_PATH = path.join(__dirname, 'recipeRiff.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'recipeRiff.db');
+console.log('DB_PATH seanhere :>> ', DB_PATH);
+// const DB_PATH = path.join(__dirname, 'recipeRiff.db');
 
 const db: IDatabase = new Database(DB_PATH);
 

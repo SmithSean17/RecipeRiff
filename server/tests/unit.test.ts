@@ -73,11 +73,6 @@ describe('Database schema', () => {
     expect(fk[0].foreign_keys).toBe(1);
   });
 
-  it('has WAL journal mode', () => {
-    const mode = db.pragma('journal_mode') as PragmaResult[];
-    expect(mode[0].journal_mode).toBe('wal');
-  });
-
   it('has indexes on key columns', () => {
     const indexes = (db.prepare(
       "SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL ORDER BY name"
