@@ -167,10 +167,34 @@ router.get('/', (req: Request, res: Response): void => {
     }
 
     const variations = db.prepare(`
-      SELECT * FROM recipe_variations
-      WHERE recipe_id = ? AND user_id = ?
-      ORDER BY created_at DESC
-    `).all(recipeId, req.userId) as RecipeVariationRow[];
+      SELECT
+        rv.*,
+        COALESCE(s.total_cooks, 0) AS total_cooks,
+        s.avg_rating,
+        u.user_rating
+      FROM recipe_variations rv
+      LEFT JOIN (
+        SELECT variation_id,
+               COUNT(*) AS total_cooks,
+               AVG(CASE WHEN rating IS NOT NULL THEN rating END) AS avg_rating
+        FROM cook_logs
+        WHERE variation_id IS NOT NULL
+        GROUP BY variation_id
+      ) s ON s.variation_id = rv.id
+      LEFT JOIN (
+        SELECT variation_id,
+               AVG(CASE WHEN rating IS NOT NULL THEN rating END) AS user_rating
+        FROM cook_logs
+        WHERE user_id = ? AND variation_id IS NOT NULL
+        GROUP BY variation_id
+      ) u ON u.variation_id = rv.id
+      WHERE rv.recipe_id = ? AND rv.user_id = ?
+      ORDER BY rv.created_at DESC
+    `).all(req.userId, recipeId, req.userId) as (RecipeVariationRow & {
+      total_cooks: number;
+      avg_rating: number | null;
+      user_rating: number | null;
+    })[];
 
     res.json({
       variations: variations.map(v => ({
@@ -179,6 +203,9 @@ router.get('/', (req: Request, res: Response): void => {
         label: v.label,
         notes: v.notes,
         createdAt: v.created_at,
+        totalCooks: v.total_cooks,
+        avgRating: v.avg_rating ? Math.round(v.avg_rating * 10) / 10 : null,
+        userRating: v.user_rating ? Math.round(v.user_rating * 10) / 10 : null,
       }))
     });
   } catch (err: unknown) {

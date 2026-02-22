@@ -223,6 +223,9 @@ export interface SerializedVariationListItem {
   label: string;
   notes: string | null;
   createdAt: string;
+  totalCooks: number;
+  avgRating: number | null;
+  userRating: number | null;
 }
 
 // ============================================================

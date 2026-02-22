@@ -1,22 +1,19 @@
 import React, { useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../../theme';
 import { useStats } from '../../hooks/useStats';
 import { useCookLogs } from '../../hooks/useCookLogs';
-
-function getActivityLevel(count: number): number {
-  if (count === 0) return 0;
-  if (count === 1) return 1;
-  if (count === 2) return 2;
-  if (count === 3) return 3;
-  return 4;
-}
+import type { StatsStackParamList } from '../../types/navigation';
 
 export default function StatsScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<StatsStackParamList>>();
   const { stats, loading, fetchStats } = useStats();
   const { cookLogs, fetchCookLogs } = useCookLogs();
 
@@ -78,44 +75,35 @@ export default function StatsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Most Cooked</Text>
             {stats.mostCooked.map((item, i) => (
-              <View key={item.recipeId} style={styles.mostCookedRow}>
+              <TouchableOpacity
+                key={item.recipeId}
+                style={styles.mostCookedRow}
+                onPress={() => navigation.navigate('RecipeDetail', { id: item.recipeId })}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.rankNum}>{i + 1}</Text>
                 <Text style={styles.recipeName} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.countText}>{item.count}x</Text>
-              </View>
+                <Ionicons name="chevron-forward" size={14} color={colors.barkLighter} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {/* Activity Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>This Month</Text>
-          <View style={styles.activityGrid}>
-            {(stats.activityGrid || []).map((day) => {
-              const level = getActivityLevel(day.count);
-              return (
-                <View
-                  key={day.date}
-                  style={[
-                    styles.activityDot,
-                    level === 0 && styles.dotL0,
-                    level === 1 && styles.dotL1,
-                    level === 2 && styles.dotL2,
-                    level === 3 && styles.dotL3,
-                    level === 4 && styles.dotL4,
-                  ]}
-                />
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Recent Cooks */}
+        {/* Cooking History */}
         {cookLogs.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Cooks</Text>
-            {cookLogs.slice(0, 10).map(log => (
-              <View key={log.id} style={styles.cookLogRow}>
+            <Text style={styles.sectionTitle}>Cooking History</Text>
+            {cookLogs.map(log => (
+              <TouchableOpacity
+                key={log.id}
+                style={styles.cookLogRow}
+                onPress={() => navigation.navigate('RecipeDetail', {
+                  id: log.recipeId,
+                  ...(log.variationId ? { variationId: log.variationId } : {}),
+                })}
+                activeOpacity={0.7}
+              >
                 <View style={styles.cookLogInfo}>
                   <Text style={styles.cookLogTitle} numberOfLines={1}>{log.recipeTitle}</Text>
                   {log.variationLabel ? (
@@ -128,7 +116,8 @@ export default function StatsScreen() {
                 {log.rating ? (
                   <Text style={styles.cookLogRating}>{'★'.repeat(log.rating)}</Text>
                 ) : null}
-              </View>
+                <Ionicons name="chevron-forward" size={14} color={colors.barkLighter} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -173,18 +162,6 @@ const styles = StyleSheet.create({
   rankNum: { width: 24, fontSize: 14, fontWeight: '600', color: colors.amberDeep },
   recipeName: { flex: 1, fontSize: 14, color: colors.charcoal },
   countText: { fontSize: 13, color: colors.barkLight, fontWeight: '500' },
-
-  activityGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 4,
-  },
-  activityDot: {
-    width: '13%', aspectRatio: 1, borderRadius: 4,
-  },
-  dotL0: { backgroundColor: 'rgba(45,41,38,0.06)' },
-  dotL1: { backgroundColor: 'rgba(94,140,74,0.2)' },
-  dotL2: { backgroundColor: 'rgba(94,140,74,0.4)' },
-  dotL3: { backgroundColor: 'rgba(94,140,74,0.7)' },
-  dotL4: { backgroundColor: 'rgba(94,140,74,1)' },
 
   cookLogRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
