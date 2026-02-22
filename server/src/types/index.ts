@@ -86,6 +86,34 @@ export interface CookLogRow {
 
 export interface CookLogRowWithTitle extends CookLogRow {
   recipe_title: string;
+  variation_id: number | null;
+  variation_label: string | null;
+}
+
+export interface RecipeVariationRow {
+  id: number;
+  recipe_id: number;
+  user_id: number;
+  label: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface VariationIngredientRow {
+  id: number;
+  variation_id: number;
+  sort_order: number;
+  quantity: string | null;
+  name: string;
+  is_substitution: number; // 0 or 1 (SQLite boolean)
+  original_ingredient_name: string | null;
+}
+
+export interface VariationDirectionRow {
+  id: number;
+  variation_id: number;
+  step_number: number;
+  text: string;
 }
 
 // ============================================================
@@ -156,6 +184,45 @@ export interface SerializedCookLog {
   notes: string | null;
   photoPath: string | null;
   cookedAt: string;
+  variationId: number | null;
+  variationLabel: string | null;
+}
+
+// ============================================================
+// VARIATION SERIALIZED TYPES
+// ============================================================
+
+export interface SerializedVariationIngredient {
+  id: number;
+  sortOrder: number;
+  quantity: string | null;
+  name: string;
+  isSubstitution: boolean;
+  originalIngredientName: string | null;
+}
+
+export interface SerializedVariationDirection {
+  id: number;
+  stepNumber: number;
+  text: string;
+}
+
+export interface SerializedVariation {
+  id: number;
+  recipeId: number;
+  label: string;
+  notes: string | null;
+  ingredients: SerializedVariationIngredient[];
+  directions: SerializedVariationDirection[];
+  createdAt: string;
+}
+
+export interface SerializedVariationListItem {
+  id: number;
+  recipeId: number;
+  label: string;
+  notes: string | null;
+  createdAt: string;
 }
 
 // ============================================================
@@ -205,6 +272,24 @@ export interface CreateCookLogBody {
   notes?: string | null;
 }
 
+export interface FinishCookingBody {
+  recipeId: number | string;
+  label: string;
+  variationNotes?: string | null;
+  ingredients: Array<{
+    quantity?: string | null;
+    name: string;
+    isSubstitution?: boolean;
+    originalIngredientName?: string | null;
+  }>;
+  directions: Array<{
+    stepNumber?: number;
+    text: string;
+  }>;
+  rating?: number | string | null;
+  cookLogNotes?: string | null;
+}
+
 // ============================================================
 // API RESPONSE TYPES
 // ============================================================
@@ -242,6 +327,19 @@ export interface CookLogCreateResponse {
 
 export interface CookLogListResponse {
   cookLogs: SerializedCookLog[];
+}
+
+export interface VariationResponse {
+  variation: SerializedVariation;
+}
+
+export interface VariationListResponse {
+  variations: SerializedVariationListItem[];
+}
+
+export interface FinishCookingResponse {
+  variation: SerializedVariation;
+  cookLog: SerializedCookLog;
 }
 
 export interface StatsResponse {

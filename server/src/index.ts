@@ -11,6 +11,7 @@ import recipeRoutes from './routes/recipes';
 import substitutionRoutes from './routes/substitutions';
 import cookLogRoutes from './routes/cookLogs';
 import statsRoutes from './routes/stats';
+import variationRoutes from './routes/variations';
 
 const app = express();
 const PORT = (process.env.PORT || 3000) as number;
@@ -35,6 +36,7 @@ app.use('/api/recipes', authMiddleware, recipeRoutes);
 app.use('/api/substitutions', authMiddleware, substitutionRoutes);
 app.use('/api/cook-logs', authMiddleware, cookLogRoutes);
 app.use('/api/stats', authMiddleware, statsRoutes);
+app.use('/api/variations', authMiddleware, variationRoutes);
 
 // Health check
 app.get('/api/health', (_req: Request, res: Response): void => {

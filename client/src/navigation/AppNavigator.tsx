@@ -7,6 +7,9 @@ import { colors } from '../theme';
 import RecipeListScreen from '../screens/recipes/RecipeListScreen';
 import RecipeDetailScreen from '../screens/recipes/RecipeDetailScreen';
 import RecipeFormScreen from '../screens/recipes/RecipeFormScreen';
+import RiffModeScreen from '../screens/recipes/RiffModeScreen';
+import CookScreen from '../screens/recipes/CookScreen';
+import SaveRiffScreen from '../screens/recipes/SaveRiffScreen';
 import StatsScreen from '../screens/stats/StatsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import type { BottomTabParamList, RecipesStackParamList } from '../types/navigation';
@@ -23,6 +26,21 @@ function RecipesNavigator() {
         name="RecipeForm"
         component={RecipeFormScreen}
         options={{ presentation: 'modal' }}
+      />
+      <RecipesStack.Screen
+        name="RiffMode"
+        component={RiffModeScreen}
+        options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+      />
+      <RecipesStack.Screen
+        name="CookScreen"
+        component={CookScreen}
+        options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+      />
+      <RecipesStack.Screen
+        name="SaveRiff"
+        component={SaveRiffScreen}
+        options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
       />
     </RecipesStack.Navigator>
   );

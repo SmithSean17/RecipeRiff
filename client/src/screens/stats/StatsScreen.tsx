@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../theme';
 import { useStats } from '../../hooks/useStats';
+import { useCookLogs } from '../../hooks/useCookLogs';
 
 function getActivityLevel(count: number): number {
   if (count === 0) return 0;
@@ -17,11 +18,13 @@ function getActivityLevel(count: number): number {
 
 export default function StatsScreen() {
   const { stats, loading, fetchStats } = useStats();
+  const { cookLogs, fetchCookLogs } = useCookLogs();
 
   useFocusEffect(
     useCallback(() => {
       fetchStats();
-    }, [fetchStats])
+      fetchCookLogs();
+    }, [fetchStats, fetchCookLogs])
   );
 
   if (loading && !stats) {
@@ -107,6 +110,29 @@ export default function StatsScreen() {
           </View>
         </View>
 
+        {/* Recent Cooks */}
+        {cookLogs.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Cooks</Text>
+            {cookLogs.slice(0, 10).map(log => (
+              <View key={log.id} style={styles.cookLogRow}>
+                <View style={styles.cookLogInfo}>
+                  <Text style={styles.cookLogTitle} numberOfLines={1}>{log.recipeTitle}</Text>
+                  {log.variationLabel ? (
+                    <Text style={styles.cookLogVariation}>{log.variationLabel}</Text>
+                  ) : null}
+                  <Text style={styles.cookLogDate}>
+                    {new Date(log.cookedAt + 'Z').toLocaleDateString()}
+                  </Text>
+                </View>
+                {log.rating ? (
+                  <Text style={styles.cookLogRating}>{'★'.repeat(log.rating)}</Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
@@ -159,4 +185,15 @@ const styles = StyleSheet.create({
   dotL2: { backgroundColor: 'rgba(94,140,74,0.4)' },
   dotL3: { backgroundColor: 'rgba(94,140,74,0.7)' },
   dotL4: { backgroundColor: 'rgba(94,140,74,1)' },
+
+  cookLogRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: radius.sm, marginBottom: 6,
+  },
+  cookLogInfo: { flex: 1, marginRight: 8 },
+  cookLogTitle: { fontSize: 14, fontWeight: '500', color: colors.charcoal },
+  cookLogVariation: { fontSize: 12, color: colors.sageDeep, fontWeight: '500', marginTop: 2 },
+  cookLogDate: { fontSize: 11, color: colors.barkLighter, marginTop: 2 },
+  cookLogRating: { fontSize: 14, color: colors.amberDeep },
 });

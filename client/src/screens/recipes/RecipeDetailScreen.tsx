@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal,
-  ActivityIndicator, Alert, AlertButton
+  ActivityIndicator, Alert, AlertButton, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +11,10 @@ import CookLogModal from '../../components/CookLogModal';
 import { useRecipes } from '../../hooks/useRecipes';
 import { useSubstitutions } from '../../hooks/useSubstitutions';
 import { useCookLogs } from '../../hooks/useCookLogs';
+import { useVariations } from '../../hooks/useVariations';
 import { colors, spacing, radius, recipeGradients, tagColors } from '../../theme';
 import type { RecipesStackParamList } from '../../types/navigation';
-import type { Recipe, Ingredient, Substitution } from '../../types';
+import type { Recipe, Ingredient, Substitution, CookModeIngredient, CookModeDirection, VariationListItem } from '../../types';
 
 type Props = NativeStackScreenProps<RecipesStackParamList, 'RecipeDetail'>;
 
@@ -31,14 +32,16 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
   const { getRecipe, deleteRecipe } = useRecipes();
   const { substitutions, loading: subsLoading, lookupSubstitutions } = useSubstitutions();
   const { logCook } = useCookLogs();
+  const { variations, loading: variationsLoading, fetchVariations, getVariation } = useVariations();
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'ingredients' | 'directions' | 'notes'>('ingredients');
+  const [activeTab, setActiveTab] = useState<'ingredients' | 'directions' | 'notes' | 'variations'>('ingredients');
   const [subs, setSubs] = useState<SubMap>({});
   const [showSubSheet, setShowSubSheet] = useState(false);
   const [activeIngredient, setActiveIngredient] = useState<Ingredient | null>(null);
   const [showCookLog, setShowCookLog] = useState(false);
+  const [customSubName, setCustomSubName] = useState('');
 
   const loadRecipeCallback = useCallback(() => {
     loadRecipe();
@@ -53,6 +56,7 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
     try {
       const r = await getRecipe(recipeId);
       setRecipe(r);
+      fetchVariations(recipeId).catch(() => {});
     } catch (err: unknown) {
       Alert.alert('Error', 'Failed to load recipe.');
       navigation.goBack();
@@ -127,6 +131,17 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
     setActiveIngredient(null);
   }
 
+  function selectCustomSubstitution(): void {
+    if (!activeIngredient || !customSubName.trim()) return;
+    setSubs({
+      ...subs,
+      [activeIngredient.id]: { name: customSubName.trim(), quantity: activeIngredient.quantity || '' },
+    });
+    setShowSubSheet(false);
+    setActiveIngredient(null);
+    setCustomSubName('');
+  }
+
   async function handleCookLog({ recipeId: rid, rating, notes }: { recipeId: number; rating: number | null; notes: string | null }): Promise<void> {
     try {
       await logCook({ recipeId: rid, rating, notes });
@@ -136,6 +151,41 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
     } catch (err: unknown) {
       Alert.alert('Error', 'Failed to log cook.');
     }
+  }
+
+  function enterRiffMode(): void {
+    if (!recipe) return;
+
+    const riffIngredients: CookModeIngredient[] = recipe.ingredients.map((ing, idx) => {
+      const sub = subs[ing.id];
+      if (sub) {
+        return {
+          key: `ing-${idx}`,
+          quantity: sub.quantity,
+          name: sub.name,
+          isSubstitution: true,
+          originalIngredientName: ing.name,
+        };
+      }
+      return {
+        key: `ing-${idx}`,
+        quantity: ing.quantity || '',
+        name: ing.name,
+        isSubstitution: false,
+        originalIngredientName: null,
+      };
+    });
+
+    const riffDirections: CookModeDirection[] = recipe.directions.map((dir, idx) => ({
+      key: `dir-${idx}`,
+      text: dir.text,
+    }));
+
+    navigation.navigate('RiffMode', {
+      recipe,
+      initialIngredients: riffIngredients,
+      initialDirections: riffDirections,
+    });
   }
 
   if (loading || !recipe) {
@@ -150,7 +200,7 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
 
   const gradientIndex = (recipe.id || 0) % recipeGradients.length;
   const [bgColor] = recipeGradients[gradientIndex];
-  const tabs: Array<'ingredients' | 'directions' | 'notes'> = ['ingredients', 'directions', 'notes'];
+  const tabs: Array<'ingredients' | 'directions' | 'notes' | 'variations'> = ['ingredients', 'directions', 'notes', 'variations'];
 
   const handleDeleteConfirmation = () => {
     deleteRecipe(recipeId);
@@ -265,12 +315,44 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
               <Text style={styles.notesText}>{recipe.notes || 'No notes yet.'}</Text>
             </View>
           )}
+
+          {activeTab === 'variations' && (
+            <View>
+              {variationsLoading ? (
+                <ActivityIndicator color={colors.amberDeep} style={{ marginTop: 20 }} />
+              ) : variations.length === 0 ? (
+                <View style={styles.emptyVariations}>
+                  <Ionicons name="flask-outline" size={32} color={colors.barkLighter} />
+                  <Text style={styles.emptyVariationsText}>No variations yet</Text>
+                  <Text style={styles.emptyVariationsHint}>Use Riff Mode to create your first variation!</Text>
+                </View>
+              ) : (
+                variations.map(v => (
+                  <TouchableOpacity key={v.id} style={styles.variationRow} activeOpacity={0.7}>
+                    <View style={styles.variationInfo}>
+                      <Text style={styles.variationLabel}>{v.label}</Text>
+                      <Text style={styles.variationDate}>
+                        {new Date(v.createdAt + 'Z').toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={colors.barkLighter} />
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          )}
         </ScrollView>
 
         <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.madeThisBtn} onPress={() => setShowCookLog(true)} activeOpacity={0.8}>
-            <Text style={styles.madeThisText}>I Made This</Text>
-          </TouchableOpacity>
+          <View style={styles.bottomBarButtons}>
+            <TouchableOpacity style={styles.cookModeBtn} onPress={enterRiffMode} activeOpacity={0.8}>
+              <Ionicons name="flame" size={16} color={colors.amberDeep} />
+              <Text style={styles.cookModeBtnText}>Riff Mode</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.madeThisBtn} onPress={() => setShowCookLog(true)} activeOpacity={0.8}>
+              <Text style={styles.madeThisText}>I Made This</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Substitution Sheet Modal */}
@@ -286,35 +368,59 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
               <ScrollView style={styles.subScrollContent} showsVerticalScrollIndicator={false}>
                 {subsLoading ? (
                   <ActivityIndicator color={colors.amberDeep} style={{ marginTop: 20 }} />
-                ) : substitutions.length === 0 ? (
-                  <Text style={styles.noSubs}>No substitutions found for this ingredient.</Text>
                 ) : (
                   <>
-                    <Text style={styles.sectionLabel}>Recommended</Text>
-                    {substitutions.map((sub, i) => (
-                      <TouchableOpacity
-                        key={sub.id}
-                        style={[styles.subOption, i === 0 && styles.subOptionBest]}
-                        onPress={() => selectSubstitution(sub)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.subOptionHeader}>
-                          <Text style={styles.subName}>{sub.substituteName}</Text>
-                          {i === 0 && (
-                            <View style={styles.bestBadge}>
-                              <Text style={styles.bestBadgeText}>Best match</Text>
+                    {substitutions.length > 0 && (
+                      <>
+                        <Text style={styles.sectionLabel}>Suggested</Text>
+                        {substitutions.map((sub, i) => (
+                          <TouchableOpacity
+                            key={sub.id}
+                            style={[styles.subOption, i === 0 && styles.subOptionBest]}
+                            onPress={() => selectSubstitution(sub)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.subOptionHeader}>
+                              <Text style={styles.subName}>{sub.substituteName}</Text>
+                              {i === 0 && (
+                                <View style={styles.bestBadge}>
+                                  <Text style={styles.bestBadgeText}>Best match</Text>
+                                </View>
+                              )}
                             </View>
-                          )}
-                        </View>
-                        <Text style={styles.subRatio}>Ratio: {sub.ratio}x</Text>
-                        {sub.impactNote && <Text style={styles.subNote}>{sub.impactNote}</Text>}
+                            <Text style={styles.subRatio}>Ratio: {sub.ratio}x</Text>
+                            {sub.impactNote && <Text style={styles.subNote}>{sub.impactNote}</Text>}
+                          </TouchableOpacity>
+                        ))}
+                      </>
+                    )}
+
+                    <Text style={[styles.sectionLabel, { marginTop: substitutions.length > 0 ? 16 : 0 }]}>
+                      Custom
+                    </Text>
+                    <View style={styles.customSubRow}>
+                      <TextInput
+                        style={styles.customSubInput}
+                        value={customSubName}
+                        onChangeText={setCustomSubName}
+                        placeholder="Enter your own substitute..."
+                        placeholderTextColor={colors.barkLighter}
+                        returnKeyType="done"
+                        onSubmitEditing={selectCustomSubstitution}
+                      />
+                      <TouchableOpacity
+                        style={[styles.customSubBtn, !customSubName.trim() && { opacity: 0.4 }]}
+                        onPress={selectCustomSubstitution}
+                        disabled={!customSubName.trim()}
+                      >
+                        <Text style={styles.customSubBtnText}>Use</Text>
                       </TouchableOpacity>
-                    ))}
+                    </View>
                   </>
                 )}
               </ScrollView>
 
-              <TouchableOpacity style={styles.subCancel} onPress={() => { setShowSubSheet(false); setActiveIngredient(null); }}>
+              <TouchableOpacity style={styles.subCancel} onPress={() => { setShowSubSheet(false); setActiveIngredient(null); setCustomSubName(''); }}>
                 <Text style={styles.subCancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -388,10 +494,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl, paddingBottom: 16, paddingTop: 8,
     backgroundColor: 'rgba(255,248,240,0.9)',
   },
-  madeThisBtn: {
-    backgroundColor: colors.amberDeep, borderRadius: radius.md, padding: 16, alignItems: 'center',
+  bottomBarButtons: {
+    flexDirection: 'row', gap: 10,
   },
-  madeThisText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  cookModeBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderRadius: radius.md, padding: 16,
+    borderWidth: 1.5, borderColor: colors.amberDeep, backgroundColor: 'transparent',
+  },
+  cookModeBtnText: { color: colors.amberDeep, fontSize: 15, fontWeight: '600' },
+  madeThisBtn: {
+    flex: 1, backgroundColor: colors.amberDeep, borderRadius: radius.md, padding: 16, alignItems: 'center',
+  },
+  madeThisText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  emptyVariations: { alignItems: 'center', paddingVertical: 32 },
+  emptyVariationsText: { fontSize: 16, fontWeight: '600', color: colors.barkLight, marginTop: 12 },
+  emptyVariationsHint: { fontSize: 13, color: colors.barkLighter, marginTop: 4, textAlign: 'center' },
+  variationRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 10,
+    marginBottom: 6, borderWidth: 1, borderColor: 'rgba(45,41,38,0.04)',
+  },
+  variationInfo: { flex: 1 },
+  variationLabel: { fontSize: 15, fontWeight: '500', color: colors.charcoal },
+  variationDate: { fontSize: 12, color: colors.barkLight, marginTop: 2 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   subSheet: {
     backgroundColor: colors.cream, borderTopLeftRadius: 24, borderTopRightRadius: 24,
@@ -416,4 +543,14 @@ const styles = StyleSheet.create({
   subNote: { fontSize: 12, color: colors.barkLight, marginTop: 4 },
   subCancel: { alignItems: 'center', paddingVertical: 12, marginTop: 8 },
   subCancelText: { fontSize: 14, color: colors.barkLight },
+  customSubRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 },
+  customSubInput: {
+    flex: 1, backgroundColor: colors.white, borderRadius: radius.md, padding: 12,
+    fontSize: 14, color: colors.charcoal, borderWidth: 1.5, borderColor: colors.border,
+  },
+  customSubBtn: {
+    backgroundColor: colors.amberDeep, borderRadius: radius.md,
+    paddingHorizontal: 16, paddingVertical: 12,
+  },
+  customSubBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });

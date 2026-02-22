@@ -72,6 +72,8 @@ export interface CookLog {
   notes: string | null;
   photoPath: string | null;
   cookedAt: string;
+  variationId: number | null;
+  variationLabel: string | null;
 }
 
 export interface MostCookedItem {
@@ -95,6 +97,43 @@ export interface StatsData {
 }
 
 // ============================================================
+// VARIATION DOMAIN MODELS
+// ============================================================
+
+export interface VariationIngredient {
+  id: number;
+  sortOrder: number;
+  quantity: string | null;
+  name: string;
+  isSubstitution: boolean;
+  originalIngredientName: string | null;
+}
+
+export interface VariationDirection {
+  id: number;
+  stepNumber: number;
+  text: string;
+}
+
+export interface Variation {
+  id: number;
+  recipeId: number;
+  label: string;
+  notes: string | null;
+  ingredients: VariationIngredient[];
+  directions: VariationDirection[];
+  createdAt: string;
+}
+
+export interface VariationListItem {
+  id: number;
+  recipeId: number;
+  label: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+// ============================================================
 // FORM TYPES
 // ============================================================
 
@@ -105,6 +144,19 @@ export interface FormIngredient {
 }
 
 export interface FormDirection {
+  key: string;
+  text: string;
+}
+
+export interface CookModeIngredient {
+  key: string;
+  quantity: string;
+  name: string;
+  isSubstitution: boolean;
+  originalIngredientName: string | null;
+}
+
+export interface CookModeDirection {
   key: string;
   text: string;
 }
@@ -139,6 +191,24 @@ export interface FetchRecipesParams {
   limit?: number;
 }
 
+export interface FinishCookingInput {
+  recipeId: number;
+  label: string;
+  variationNotes: string | null;
+  ingredients: Array<{
+    quantity: string | null;
+    name: string;
+    isSubstitution: boolean;
+    originalIngredientName: string | null;
+  }>;
+  directions: Array<{
+    stepNumber: number;
+    text: string;
+  }>;
+  rating: number | null;
+  cookLogNotes: string | null;
+}
+
 // ============================================================
 // ENUMS
 // ============================================================
@@ -153,6 +223,7 @@ export enum ActiveTab {
   Ingredients = 'ingredients',
   Directions = 'directions',
   Notes = 'notes',
+  Variations = 'variations',
 }
 
 // ============================================================
@@ -209,6 +280,37 @@ export interface MenuItemProps {
   danger?: boolean;
 }
 
+export interface FinishCookingModalProps {
+  visible: boolean;
+  recipeName: string;
+  onClose: () => void;
+  onSubmit: (data: { label: string; rating: number | null; notes: string | null }) => void;
+}
+
+export interface CookModeIngredientRowProps {
+  ingredient: CookModeIngredient;
+  onUpdateQuantity: (value: string) => void;
+  onUpdateName: (value: string) => void;
+  onRemove: () => void;
+  onSubstitute: () => void;
+}
+
+export interface RiffIngredientCardProps {
+  ingredient: CookModeIngredient;
+  originalQuantity: string;
+  isRemoved: boolean;
+  onAdjustQuantity: (delta: number) => void;
+  onSetQuantity: (value: string) => void;
+  onSwap: () => void;
+  onRemove: () => void;
+  onUndo: () => void;
+}
+
+export interface VariationListItemProps {
+  variation: VariationListItem;
+  onPress: () => void;
+}
+
 export interface StatProps {
   icon: string;
   label: string;
@@ -260,6 +362,14 @@ export interface UseStatsReturn {
   fetchStats: () => Promise<StatsData>;
 }
 
+export interface UseVariationsReturn {
+  variations: VariationListItem[];
+  loading: boolean;
+  fetchVariations: (recipeId: number) => Promise<VariationListItem[]>;
+  getVariation: (id: number) => Promise<Variation>;
+  finishCooking: (data: FinishCookingInput) => Promise<{ variation: Variation; cookLog: CookLog }>;
+}
+
 // ============================================================
 // API RESPONSE SHAPES (for typing Axios responses)
 // ============================================================
@@ -290,4 +400,17 @@ export interface CookLogApiResponse {
 
 export interface CookLogListApiResponse {
   cookLogs: CookLog[];
+}
+
+export interface VariationApiResponse {
+  variation: Variation;
+}
+
+export interface VariationListApiResponse {
+  variations: VariationListItem[];
+}
+
+export interface FinishCookingApiResponse {
+  variation: Variation;
+  cookLog: CookLog;
 }

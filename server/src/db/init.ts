@@ -1,7 +1,7 @@
 import Database, { Database as IDatabase } from 'better-sqlite3';
 import path from 'path';
 import seedSubstitutions from './seed-substitutions';
-import type { CountResultC } from '../types';
+import type { CountResultC, ColumnInfoRow } from '../types';
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'recipeRiff.db');
 // const DB_PATH = path.join(__dirname, 'recipeRiff.db');
@@ -74,6 +74,32 @@ db.exec(`
     rank INTEGER NOT NULL DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS recipe_variations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS variation_ingredients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    variation_id INTEGER NOT NULL REFERENCES recipe_variations(id) ON DELETE CASCADE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    quantity TEXT,
+    name TEXT NOT NULL,
+    is_substitution INTEGER NOT NULL DEFAULT 0,
+    original_ingredient_name TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS variation_directions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    variation_id INTEGER NOT NULL REFERENCES recipe_variations(id) ON DELETE CASCADE,
+    step_number INTEGER NOT NULL,
+    text TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS cook_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -81,6 +107,7 @@ db.exec(`
     rating INTEGER,
     notes TEXT,
     photo_path TEXT,
+    variation_id INTEGER REFERENCES recipe_variations(id) ON DELETE SET NULL,
     cooked_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -94,7 +121,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_cook_logs_recipe ON cook_logs(recipe_id);
   CREATE INDEX IF NOT EXISTS idx_cook_logs_date ON cook_logs(cooked_at);
   CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+  CREATE INDEX IF NOT EXISTS idx_variations_recipe ON recipe_variations(recipe_id);
+  CREATE INDEX IF NOT EXISTS idx_variations_user ON recipe_variations(user_id);
+  CREATE INDEX IF NOT EXISTS idx_var_ingredients_variation ON variation_ingredients(variation_id);
+  CREATE INDEX IF NOT EXISTS idx_var_directions_variation ON variation_directions(variation_id);
 `);
+
+// Migrate existing cook_logs table: add variation_id column if missing
+const cookLogCols = db.prepare("PRAGMA table_info(cook_logs)").all() as ColumnInfoRow[];
+if (!cookLogCols.find(col => col.name === 'variation_id')) {
+  db.exec("ALTER TABLE cook_logs ADD COLUMN variation_id INTEGER REFERENCES recipe_variations(id) ON DELETE SET NULL");
+}
+db.exec("CREATE INDEX IF NOT EXISTS idx_cook_logs_variation ON cook_logs(variation_id)");
 
 // Seed substitutions if table is empty
 const count = db.prepare('SELECT COUNT(*) as c FROM substitutions').get() as CountResultC;

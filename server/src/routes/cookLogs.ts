@@ -44,7 +44,9 @@ router.post('/', upload.single('photo'), (req: Request, res: Response): void => 
         rating: log.rating,
         notes: log.notes,
         photoPath: log.photo_path,
-        cookedAt: log.cooked_at
+        cookedAt: log.cooked_at,
+        variationId: null,
+        variationLabel: null,
       }
     });
   } catch (err: unknown) {
@@ -59,9 +61,11 @@ router.get('/', (req: Request, res: Response): void => {
     const { recipeId } = req.query;
 
     let sql = `
-      SELECT cl.*, r.title as recipe_title
+      SELECT cl.*, r.title as recipe_title,
+        rv.id as variation_id, rv.label as variation_label
       FROM cook_logs cl
       JOIN recipes r ON r.id = cl.recipe_id
+      LEFT JOIN recipe_variations rv ON rv.id = cl.variation_id
       WHERE cl.user_id = ?
     `;
     const params: (string | number)[] = [req.userId];
@@ -83,7 +87,9 @@ router.get('/', (req: Request, res: Response): void => {
         rating: l.rating,
         notes: l.notes,
         photoPath: l.photo_path,
-        cookedAt: l.cooked_at
+        cookedAt: l.cooked_at,
+        variationId: l.variation_id || null,
+        variationLabel: l.variation_label || null,
       }))
     });
   } catch (err: unknown) {
