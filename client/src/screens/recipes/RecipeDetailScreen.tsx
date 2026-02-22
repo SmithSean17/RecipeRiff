@@ -164,7 +164,11 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
       [
         {
           text: 'Yes, delete this',
+          style: 'destructive',
           onPress: handleDeleteConfirmation
+        },
+        {
+          text: 'Cancel', style: 'cancel'
         }
       ]
     )
