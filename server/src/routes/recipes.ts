@@ -21,7 +21,8 @@ function serializeRecipe(
   tags: string[],
   ingredients: IngredientRow[],
   directions: DirectionRow[],
-  stats: RecipeStats | undefined
+  stats: RecipeStats | undefined,
+  isOwner: boolean = true
 ): SerializedRecipe {
   return {
     id: r.id,
@@ -37,6 +38,7 @@ function serializeRecipe(
     cookCount: stats?.cook_count || 0,
     lastCooked: stats?.last_cooked || null,
     avgRating: stats?.avg_rating || null,
+    isOwner,
     createdAt: r.created_at,
     updatedAt: r.updated_at
   };
@@ -132,7 +134,7 @@ router.get('/', (req: Request, res: Response): void => {
 // GET /api/recipes/:id — full detail
 router.get('/:id', (req: Request, res: Response): void => {
   try {
-    const recipe = db.prepare('SELECT * FROM recipes WHERE id = ? AND user_id = ?').get(req.params.id, req.userId) as RecipeRow | undefined;
+    const recipe = db.prepare('SELECT * FROM recipes WHERE id = ?').get(req.params.id) as RecipeRow | undefined;
     if (!recipe) {
       res.status(404).json({ error: 'Recipe not found' }); return;
     }
@@ -146,7 +148,9 @@ router.get('/:id', (req: Request, res: Response): void => {
       FROM cook_logs WHERE recipe_id = ? AND user_id = ?
     `).get(recipe.id, req.userId) as RecipeStats | undefined;
 
-    res.json({ recipe: serializeRecipe(recipe, tags, ingredients, directions, stats) });
+    const isOwner = recipe.user_id === req.userId;
+
+    res.json({ recipe: serializeRecipe(recipe, tags, ingredients, directions, stats, isOwner) });
   } catch (err: unknown) {
     console.error('Get recipe error:', err);
     res.status(500).json({ error: 'Internal server error' });

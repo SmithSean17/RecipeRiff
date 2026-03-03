@@ -16,7 +16,7 @@ import { useCookLogs } from '../../hooks/useCookLogs';
 import { useVariations } from '../../hooks/useVariations';
 import { colors, spacing, radius, recipeGradients, tagColors } from '../../theme';
 import type { RecipesStackParamList } from '../../types/navigation';
-import type { Recipe, Ingredient, Substitution, CookModeIngredient, CookModeDirection, VariationListItem } from '../../types';
+import type { Recipe, Ingredient, Substitution, CookModeIngredient, CookModeDirection, VariationListItem, Variation } from '../../types';
 
 type Props = NativeStackScreenProps<RecipesStackParamList, 'RecipeDetail'>;
 
@@ -31,10 +31,11 @@ interface StatComponentProps {
 
 export default function RecipeDetailScreen({ navigation, route }: Props) {
   const recipeId = route.params?.id;
+  const initialVariationId = route.params?.variationId;
   const { getRecipe, deleteRecipe } = useRecipes();
   const { substitutions, loading: subsLoading, lookupSubstitutions } = useSubstitutions();
   const { logCook } = useCookLogs();
-  const { variations, loading: variationsLoading, fetchVariations, getVariation } = useVariations();
+  const { variations, loading: variationsLoading, fetchVariations, getVariation, renameVariation } = useVariations();
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +45,49 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
   const [activeIngredient, setActiveIngredient] = useState<Ingredient | null>(null);
   const [showCookLog, setShowCookLog] = useState(false);
   const [customSubName, setCustomSubName] = useState('');
+  const [activeVariation, setActiveVariation] = useState<Variation | null>(null);
+  const [variationLoading, setVariationLoading] = useState(false);
+
+  async function handleVariationPress(v: VariationListItem): Promise<void> {
+    setVariationLoading(true);
+    try {
+      const full = await getVariation(v.id);
+      setActiveVariation(full);
+      setSubs({});
+      setActiveTab('ingredients');
+    } catch {
+      Alert.alert('Error', 'Failed to load variation.');
+    } finally {
+      setVariationLoading(false);
+    }
+  }
+
+  function handleVariationLongPress(v: VariationListItem): void {
+    if (!v.isOwner) return;
+    Alert.prompt(
+      'Rename Variation',
+      'Enter a new name for this variation:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: async (newLabel?: string) => {
+            if (!newLabel?.trim()) return;
+            try {
+              await renameVariation(v.id, newLabel.trim());
+              if (activeVariation?.id === v.id) {
+                setActiveVariation(prev => prev ? { ...prev, label: newLabel.trim() } : prev);
+              }
+            } catch {
+              Alert.alert('Error', 'Failed to rename variation.');
+            }
+          },
+        },
+      ],
+      'plain-text',
+      v.label
+    );
+  }
 
   // Keyboard height tracking for bottom-sheet modals
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -97,6 +141,14 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
       const r = await getRecipe(recipeId);
       setRecipe(r);
       fetchVariations(recipeId).catch(() => {});
+      if (initialVariationId) {
+        try {
+          const v = await getVariation(initialVariationId);
+          setActiveVariation(v);
+        } catch {
+          // variation may have been deleted, just show the base recipe
+        }
+      }
     } catch (err: unknown) {
       Alert.alert('Error', 'Failed to load recipe.');
       navigation.goBack();
@@ -196,30 +248,46 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
   function enterRiffMode(): void {
     if (!recipe) return;
 
-    const riffIngredients: CookModeIngredient[] = recipe.ingredients.map((ing, idx) => {
-      const sub = subs[ing.id];
-      if (sub) {
+    let riffIngredients: CookModeIngredient[];
+    let riffDirections: CookModeDirection[];
+
+    if (activeVariation) {
+      riffIngredients = activeVariation.ingredients.map((vi, idx) => ({
+        key: `ing-${idx}`,
+        quantity: vi.quantity || '',
+        name: vi.name,
+        isSubstitution: vi.isSubstitution,
+        originalIngredientName: vi.originalIngredientName,
+      }));
+      riffDirections = activeVariation.directions.map((vd, idx) => ({
+        key: `dir-${idx}`,
+        text: vd.text,
+      }));
+    } else {
+      riffIngredients = recipe.ingredients.map((ing, idx) => {
+        const sub = subs[ing.id];
+        if (sub) {
+          return {
+            key: `ing-${idx}`,
+            quantity: sub.quantity,
+            name: sub.name,
+            isSubstitution: true,
+            originalIngredientName: ing.name,
+          };
+        }
         return {
           key: `ing-${idx}`,
-          quantity: sub.quantity,
-          name: sub.name,
-          isSubstitution: true,
-          originalIngredientName: ing.name,
+          quantity: ing.quantity || '',
+          name: ing.name,
+          isSubstitution: false,
+          originalIngredientName: null,
         };
-      }
-      return {
-        key: `ing-${idx}`,
-        quantity: ing.quantity || '',
-        name: ing.name,
-        isSubstitution: false,
-        originalIngredientName: null,
-      };
-    });
-
-    const riffDirections: CookModeDirection[] = recipe.directions.map((dir, idx) => ({
-      key: `dir-${idx}`,
-      text: dir.text,
-    }));
+      });
+      riffDirections = recipe.directions.map((dir, idx) => ({
+        key: `dir-${idx}`,
+        text: dir.text,
+      }));
+    }
 
     navigation.navigate('RiffMode', {
       recipe,
@@ -272,12 +340,16 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={22} color={colors.charcoal} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.deleteBtn} onPress={handleDeletePress}>
-            <Ionicons name="trash-outline" size={20} color={colors.charcoal} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('RecipeForm', { recipe })}>
-            <Ionicons name="pencil" size={20} color={colors.charcoal} />
-          </TouchableOpacity>
+          {recipe.isOwner && (
+            <>
+              <TouchableOpacity style={styles.deleteBtn} onPress={handleDeletePress}>
+                <Ionicons name="trash-outline" size={20} color={colors.charcoal} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('RecipeForm', { recipe })}>
+                <Ionicons name="pencil" size={20} color={colors.charcoal} />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -319,27 +391,66 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
             ))}
           </View>
 
+          {activeVariation && (
+            <View style={styles.variationBanner}>
+              <View style={styles.variationBannerInfo}>
+                <Ionicons name="flask" size={14} color={colors.sageDeep} />
+                <Text style={styles.variationBannerText} numberOfLines={1}>
+                  Viewing: {activeVariation.label}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setActiveVariation(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.variationBannerDismiss}>Show Original</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {variationLoading && (
+            <ActivityIndicator color={colors.amberDeep} style={{ marginVertical: 12 }} />
+          )}
+
           {activeTab === 'ingredients' && (
             <View>
-              {recipe.ingredients?.map(ing => (
-                <IngredientRow
-                  key={ing.id}
-                  ingredient={ing}
-                  substitution={subs[ing.id] || null}
-                  onPress={() => handleIngredientPress(ing)}
-                />
-              ))}
-              {Object.keys(subs).length > 0 && (
-                <TouchableOpacity style={styles.resetBtn} onPress={() => setSubs({})}>
-                  <Text style={styles.resetText}>Reset All Substitutions</Text>
-                </TouchableOpacity>
+              {activeVariation ? (
+                <>
+                  {activeVariation.ingredients.map(vi => (
+                    <View key={vi.id} style={styles.variationIngRow}>
+                      <Text style={styles.variationIngQty}>{vi.quantity || ''}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.variationIngName}>{vi.name}</Text>
+                        {vi.isSubstitution && vi.originalIngredientName && (
+                          <Text style={styles.variationOrigLabel}>was: {vi.originalIngredientName}</Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {recipe.ingredients?.map(ing => (
+                    <IngredientRow
+                      key={ing.id}
+                      ingredient={ing}
+                      substitution={subs[ing.id] || null}
+                      onPress={() => handleIngredientPress(ing)}
+                    />
+                  ))}
+                  {Object.keys(subs).length > 0 && (
+                    <TouchableOpacity style={styles.resetBtn} onPress={() => setSubs({})}>
+                      <Text style={styles.resetText}>Reset All Substitutions</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </View>
           )}
 
           {activeTab === 'directions' && (
             <View>
-              {recipe.directions?.map((dir) => (
+              {(activeVariation ? activeVariation.directions : recipe.directions)?.map((dir) => (
                 <View key={dir.id} style={styles.directionRow}>
                   <View style={styles.stepBadge}>
                     <Text style={styles.stepNum}>{dir.stepNumber}</Text>
@@ -368,13 +479,46 @@ export default function RecipeDetailScreen({ navigation, route }: Props) {
                 </View>
               ) : (
                 variations.map(v => (
-                  <TouchableOpacity key={v.id} style={styles.variationRow} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    key={v.id}
+                    style={[styles.variationRow, activeVariation?.id === v.id && styles.variationRowActive]}
+                    activeOpacity={0.7}
+                    onPress={() => handleVariationPress(v)}
+                    onLongPress={() => handleVariationLongPress(v)}
+                  >
                     <View style={styles.variationInfo}>
-                      <Text style={styles.variationLabel}>{v.label}</Text>
-                      <Text style={styles.variationDate}>
-                        {new Date(v.createdAt + 'Z').toLocaleDateString()}
-                      </Text>
+                      <View style={styles.variationLabelRow}>
+                        <Text style={styles.variationLabel} numberOfLines={1}>{v.label}</Text>
+                        {v.isOwner ? (
+                          <View style={styles.ownerBadge}>
+                            <Text style={styles.ownerBadgeText}>By you</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.communityBadge}>
+                            <Text style={styles.communityBadgeText}>By {v.creatorName}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.variationMeta}>
+                        <Text style={styles.variationDate}>
+                          {new Date(v.createdAt + 'Z').toLocaleDateString()}
+                        </Text>
+                        {v.totalCooks > 0 && (
+                          <Text style={styles.variationCooks}>{v.totalCooks}x cooked</Text>
+                        )}
+                      </View>
                     </View>
+                    {v.userRating != null ? (
+                      <View style={styles.variationRatingBox}>
+                        <Text style={styles.variationUserRating}>{'★'.repeat(Math.round(v.userRating))}</Text>
+                        <Text style={styles.variationRatingLabel}>You</Text>
+                      </View>
+                    ) : v.avgRating != null ? (
+                      <View style={styles.variationRatingBox}>
+                        <Text style={styles.variationAvgRating}>{'★'.repeat(Math.round(v.avgRating))}</Text>
+                        <Text style={styles.variationRatingLabel}>Avg</Text>
+                      </View>
+                    ) : null}
                     <Ionicons name="chevron-forward" size={16} color={colors.barkLighter} />
                   </TouchableOpacity>
                 ))
@@ -563,9 +707,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 10,
     marginBottom: 6, borderWidth: 1, borderColor: 'rgba(45,41,38,0.04)',
   },
+  variationRowActive: {
+    backgroundColor: colors.sageLight, borderColor: 'rgba(139,175,124,0.3)',
+  },
   variationInfo: { flex: 1 },
   variationLabel: { fontSize: 15, fontWeight: '500', color: colors.charcoal },
-  variationDate: { fontSize: 12, color: colors.barkLight, marginTop: 2 },
+  variationMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  variationDate: { fontSize: 12, color: colors.barkLight },
+  variationCooks: { fontSize: 12, color: colors.barkLighter },
+  variationRatingBox: { alignItems: 'center', marginRight: 6 },
+  variationUserRating: { fontSize: 13, color: colors.amberDeep },
+  variationAvgRating: { fontSize: 13, color: colors.barkLighter },
+  variationRatingLabel: { fontSize: 9, color: colors.barkLighter, marginTop: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   subSheet: {
     backgroundColor: colors.cream, borderTopLeftRadius: 24, borderTopRightRadius: 24,
@@ -600,4 +753,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
   },
   customSubBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  variationBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.sageLight, borderRadius: radius.md,
+    paddingVertical: 10, paddingHorizontal: 14, marginBottom: 16,
+  },
+  variationBannerInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  variationBannerText: { fontSize: 13, fontWeight: '600', color: colors.sageDeep, flex: 1 },
+  variationBannerDismiss: { fontSize: 12, fontWeight: '600', color: colors.barkLight, textDecorationLine: 'underline' },
+  variationIngRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    paddingVertical: 10, paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(45,41,38,0.08)',
+  },
+  variationIngQty: { fontSize: 14, fontWeight: '500', color: colors.barkLight, minWidth: 50 },
+  variationIngName: { fontSize: 14, color: colors.charcoal },
+  variationOrigLabel: { fontSize: 11, color: colors.clay, fontStyle: 'italic', marginTop: 2 },
+  variationLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ownerBadge: {
+    backgroundColor: 'rgba(245,158,11,0.15)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6,
+  },
+  ownerBadgeText: { fontSize: 10, fontWeight: '600', color: colors.amberDeep },
+  communityBadge: {
+    backgroundColor: 'rgba(45,41,38,0.06)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6,
+  },
+  communityBadgeText: { fontSize: 10, fontWeight: '500', color: colors.barkLight },
 });

@@ -12,10 +12,11 @@ import CookScreen from '../screens/recipes/CookScreen';
 import SaveRiffScreen from '../screens/recipes/SaveRiffScreen';
 import StatsScreen from '../screens/stats/StatsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
-import type { BottomTabParamList, RecipesStackParamList } from '../types/navigation';
+import type { BottomTabParamList, RecipesStackParamList, StatsStackParamList } from '../types/navigation';
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 const RecipesStack = createNativeStackNavigator<RecipesStackParamList>();
+const StatsStack = createNativeStackNavigator<StatsStackParamList>();
 
 function RecipesNavigator() {
   return (
@@ -43,6 +44,35 @@ function RecipesNavigator() {
         options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
       />
     </RecipesStack.Navigator>
+  );
+}
+
+function StatsNavigator() {
+  return (
+    <StatsStack.Navigator screenOptions={{ headerShown: false }}>
+      <StatsStack.Screen name="StatsHome" component={StatsScreen} />
+      <StatsStack.Screen name="RecipeDetail" component={RecipeDetailScreen} />
+      <StatsStack.Screen
+        name="RecipeForm"
+        component={RecipeFormScreen}
+        options={{ presentation: 'modal' }}
+      />
+      <StatsStack.Screen
+        name="RiffMode"
+        component={RiffModeScreen}
+        options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+      />
+      <StatsStack.Screen
+        name="CookScreen"
+        component={CookScreen}
+        options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+      />
+      <StatsStack.Screen
+        name="SaveRiff"
+        component={SaveRiffScreen}
+        options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+      />
+    </StatsStack.Navigator>
   );
 }
 
@@ -76,7 +106,7 @@ export default function AppNavigator() {
       })}
     >
       <Tab.Screen name="Recipes" component={RecipesNavigator} />
-      <Tab.Screen name="Stats" component={StatsScreen} />
+      <Tab.Screen name="Stats" component={StatsNavigator} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
