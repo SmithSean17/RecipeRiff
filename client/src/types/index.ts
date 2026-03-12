@@ -35,6 +35,7 @@ export interface Recipe {
   cookCount: number;
   lastCooked: string | null;
   avgRating: number | null;
+  isOwner: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -131,6 +132,11 @@ export interface VariationListItem {
   label: string;
   notes: string | null;
   createdAt: string;
+  creatorName: string;
+  isOwner: boolean;
+  totalCooks: number;
+  avgRating: number | null;
+  userRating: number | null;
 }
 
 // ============================================================
@@ -368,6 +374,7 @@ export interface UseVariationsReturn {
   fetchVariations: (recipeId: number) => Promise<VariationListItem[]>;
   getVariation: (id: number) => Promise<Variation>;
   finishCooking: (data: FinishCookingInput) => Promise<{ variation: Variation; cookLog: CookLog }>;
+  renameVariation: (id: number, label: string, notes?: string | null) => Promise<void>;
 }
 
 // ============================================================

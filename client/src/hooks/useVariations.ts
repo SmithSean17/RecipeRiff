@@ -49,5 +49,10 @@ export function useVariations(): UseVariationsReturn {
     }
   }, []);
 
-  return { variations, loading, fetchVariations, getVariation, finishCooking };
+  const renameVariation = useCallback(async (id: number, label: string, notes?: string | null): Promise<void> => {
+    await client.patch(`/variations/${id}`, { label, ...(notes !== undefined ? { notes } : {}) });
+    setVariations(prev => prev.map(v => v.id === id ? { ...v, label, ...(notes !== undefined ? { notes } : {}) } : v));
+  }, []);
+
+  return { variations, loading, fetchVariations, getVariation, finishCooking, renameVariation };
 }

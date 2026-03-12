@@ -74,9 +74,9 @@ router.post('/finish-cooking', (req: Request, res: Response): void => {
       }
     }
 
-    // Verify recipe exists and belongs to user
-    const recipe = db.prepare('SELECT id FROM recipes WHERE id = ? AND user_id = ?')
-      .get(recipeId, req.userId) as RecipeRow | undefined;
+    // Verify recipe exists
+    const recipe = db.prepare('SELECT id FROM recipes WHERE id = ?')
+      .get(recipeId) as RecipeRow | undefined;
     if (!recipe) {
       res.status(404).json({ error: 'Recipe not found' }); return;
     }
@@ -158,7 +158,7 @@ router.post('/finish-cooking', (req: Request, res: Response): void => {
   }
 });
 
-// GET /api/variations — list variations for a recipe
+// GET /api/variations — list variations for a recipe (all users)
 router.get('/', (req: Request, res: Response): void => {
   try {
     const { recipeId } = req.query;
@@ -167,10 +167,37 @@ router.get('/', (req: Request, res: Response): void => {
     }
 
     const variations = db.prepare(`
-      SELECT * FROM recipe_variations
-      WHERE recipe_id = ? AND user_id = ?
-      ORDER BY created_at DESC
-    `).all(recipeId, req.userId) as RecipeVariationRow[];
+      SELECT
+        rv.*,
+        usr.display_name AS creator_name,
+        COALESCE(s.total_cooks, 0) AS total_cooks,
+        s.avg_rating,
+        u.user_rating
+      FROM recipe_variations rv
+      JOIN users usr ON usr.id = rv.user_id
+      LEFT JOIN (
+        SELECT variation_id,
+               COUNT(*) AS total_cooks,
+               AVG(CASE WHEN rating IS NOT NULL THEN rating END) AS avg_rating
+        FROM cook_logs
+        WHERE variation_id IS NOT NULL
+        GROUP BY variation_id
+      ) s ON s.variation_id = rv.id
+      LEFT JOIN (
+        SELECT variation_id,
+               AVG(CASE WHEN rating IS NOT NULL THEN rating END) AS user_rating
+        FROM cook_logs
+        WHERE user_id = ? AND variation_id IS NOT NULL
+        GROUP BY variation_id
+      ) u ON u.variation_id = rv.id
+      WHERE rv.recipe_id = ?
+      ORDER BY rv.created_at DESC
+    `).all(req.userId, recipeId) as (RecipeVariationRow & {
+      creator_name: string;
+      total_cooks: number;
+      avg_rating: number | null;
+      user_rating: number | null;
+    })[];
 
     res.json({
       variations: variations.map(v => ({
@@ -179,6 +206,11 @@ router.get('/', (req: Request, res: Response): void => {
         label: v.label,
         notes: v.notes,
         createdAt: v.created_at,
+        creatorName: v.creator_name,
+        isOwner: v.user_id === req.userId,
+        totalCooks: v.total_cooks,
+        avgRating: v.avg_rating ? Math.round(v.avg_rating * 10) / 10 : null,
+        userRating: v.user_rating ? Math.round(v.user_rating * 10) / 10 : null,
       }))
     });
   } catch (err: unknown) {
@@ -187,12 +219,41 @@ router.get('/', (req: Request, res: Response): void => {
   }
 });
 
-// GET /api/variations/:id — get full variation detail
-router.get('/:id', (req: Request, res: Response): void => {
+// PATCH /api/variations/:id — rename variation label/notes (owner only)
+router.patch('/:id', (req: Request, res: Response): void => {
   try {
     const variation = db.prepare(
       'SELECT * FROM recipe_variations WHERE id = ? AND user_id = ?'
     ).get(req.params.id, req.userId) as RecipeVariationRow | undefined;
+
+    if (!variation) {
+      res.status(404).json({ error: 'Variation not found or not owned by you' }); return;
+    }
+
+    const { label, notes } = req.body as { label?: string; notes?: string | null };
+    const newLabel = label !== undefined ? (label as string).trim() : variation.label;
+    const newNotes = notes !== undefined ? notes : variation.notes;
+
+    if (!newLabel) {
+      res.status(400).json({ error: 'Label cannot be empty' }); return;
+    }
+
+    db.prepare('UPDATE recipe_variations SET label = ?, notes = ? WHERE id = ?')
+      .run(newLabel, newNotes, variation.id);
+
+    res.json({ variation: { id: variation.id, label: newLabel, notes: newNotes } });
+  } catch (err: unknown) {
+    console.error('Update variation error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/variations/:id — get full variation detail
+router.get('/:id', (req: Request, res: Response): void => {
+  try {
+    const variation = db.prepare(
+      'SELECT * FROM recipe_variations WHERE id = ?'
+    ).get(req.params.id) as RecipeVariationRow | undefined;
 
     if (!variation) {
       res.status(404).json({ error: 'Variation not found' }); return;

@@ -147,6 +147,7 @@ export interface SerializedRecipe {
   cookCount: number;
   lastCooked: string | null;
   avgRating: number | null;
+  isOwner: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -223,6 +224,11 @@ export interface SerializedVariationListItem {
   label: string;
   notes: string | null;
   createdAt: string;
+  creatorName: string;
+  isOwner: boolean;
+  totalCooks: number;
+  avgRating: number | null;
+  userRating: number | null;
 }
 
 // ============================================================
